@@ -1,3 +1,3 @@
 Fleet,Size,Seats,CASK,RASK,Turnaround,Crew min,Crew max
-Boeing MD-90,10,158,0.036,0.129,35,15,185
-Boeing 737,6,195,0.038,0.13,45,15,170
+Boeing 737-400,6,189,0.037,0.124,50,20,180
+Airbus A321,10,228,0.04,0.125,65,10,185

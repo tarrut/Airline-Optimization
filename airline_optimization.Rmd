@@ -1,0 +1,330 @@
+---
+title: "Airline Optimization"
+author: "Pau Tarrés"
+date: "2025-01-09"
+output:
+  # html_document:
+  # theme: paper
+  # highlight: monochrome
+  # toc: true
+  # toc_float: true
+
+  md_document
+always_allow_html: true
+---
+<style type="text/css">
+
+body{ /* Normal  */
+      font-size: 14px;
+  }
+</style>
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = F, warning = F)
+```
+
+# Airline Optimization
+
+This project has been carried out during my masters degree in Aerospace Engineering. In the project, diferent aspects of the job of am airline are presented. These include:
+
+- Fleet distribution
+- Revise schedule
+- Aircraft routing
+
+The referent code can be found in the following [repository](https://github.com/tarrut/Airline-Optimization/tree/main).
+
+## Introduction
+
+Based on forecasts, the airline’s load-factor policy, and marketing analysis, our airline has proposed providing three daily round-trip flights from OVB to BTK, GDX, NMA, NYM, PWQ, TOF and UUS.
+
+We have two types of fleet, namely Boeing 737-400 and Airbus A321. The seating capacities for these two fleet types are 189 and 228 seats respectively. Furthermore, we have the following information for this airline:
+
+- Cost per available seat kilometer (CASK) for B737-400 and A321 are 0.037€ (3.7 cents) and 0.04€ (4 cents) respectively.
+- Revenue per available seat kilometer (RASK) for B737-400 and A321 are 0.124€ (12.4 cents) and 0.125€ (12.5 cents) respectively.
+
+Assume that we have 6 and 10 aircrafts in our B737-400 and A321 fleets, respectively. Due to the small size of our airline we are unable to recapture passengers that were spilled. Also assume turnaround times of 50 and 65 minutes for these two fleet types respectively. Furthermore, sit-connection times for crew members will range from 20 to 180 minutes for B737-400 and 10 to 185 minutes for A321.
+
+### Flight schedule
+We have also developed a first draft of our schedule for the next quarter. The complete flight schedule route, incorporating the 42 flights per day, is presented in the [following table](https://github.com/tarrut/Airline-Optimization/blob/e653312ae903a598b87b9ac467ad52251428c680/schedule.csv). All the arrival and departure times are local times.
+
+
+### Flight information
+
+The [following table](https://github.com/tarrut/Airline-Optimization/blob/e653312ae903a598b87b9ac467ad52251428c680/flight_info.csv) presents the demand distribution for each flight as well as distances between cities. It is assumed that demand for each flight is normally distributed with the given means and standard deviations.
+
+## Fleet assignment
+```{r , include=FALSE}
+source("fleet_assignment.R")
+```
+The first step for assigning each flight to an specific fleet, it is to compute the cost to every possible assignment. Therefore, for every flight, the cost of doing it with every fleet available is computed. The cost can be computed as the operating cost and the spill cost. The operation cost can be computed like
+$$
+\text{CASK}\cdot d_{km}\cdot n_{seats}.
+$$
+To compute the spill cost first is needed the expected passenger spill:
+$$
+n_{spill} = \int_{c}^{\infty}(x-c)f(x)\;dx,
+$$
+where $f(x)$ is the probability density function (PDF) for the normal distribution obtained with the mean $(\mu)$ and the standard variation $(\sigma)$ of each flight
+$$
+f(x) = \frac{1}{\sigma \sqrt{2\pi}} \exp\left(-\frac{(x - \mu)^2}{2\sigma^2}\right).
+$$
+Then, the spilled cost can be estimated like
+$$
+ \text{RASK} \cdot d_{km} \cdot n_{spill} 
+$$
+Then, linear programming can be applied to determine the best fleet distribution, with the aim of minimizing the cost. For the presented case, the result is presented in the following table.
+
+```{r, echo = F}
+kable(tb_fleet_assignment_1, align = "c") %>%
+  kable_styling(full_width = FALSE)
+```
+
+This distribution allows to perform all the flights with the provided number of aircraft of each fleet.
+
+### Reduction of aircrafts needed
+```{r, include=FALSE}
+source("optimal_n_aircrafts.R")
+```
+However, it can be computed (using linear programming) if all the aircrafts are actually needed to cover the provided schedule. It results, that the minimum number of aircrafts is **`r format(opt_n_aircrafts)`**, less than our current fleet. Despite this, the 16 aircrafts will be used up from this point.
+
+### Best combination of aircrafts
+```{r include=FALSE}
+source("fleet_combination.R")
+```
+It is also quite interesting comparing the total cost of using different number of aircrafts from both fleets. It results that the best combination is formed by 8 Boeing 737-400 and 8 Airbus A321 with a minimum cost of 742023€.
+
+```{r, echo = F}
+kable(comb, align = "c") %>%
+  kable_styling(full_width = FALSE) %>%
+row_spec(n, background = "#fffde9", bold = TRUE)
+```
+
+
+
+## Aircraft routing
+```{r include=FALSE}
+source("aicraft_routing.R")
+```
+Now every flight is assigned to a fleet, but routings cycles and maintenance opportunities at the airport where the airline is based have not been considered. First it has to be checked if with the current schedule, the airline aircrafts can be routed in a cyclical way while having enough maintenance opportunities. For the purpose of doing this, first we have to obtain all the possible routes. This process consists in:
+
+- First, all the possible valid one-day routings considering turn around-times.
+- Attach each feasible one day routing to all other one-day routings.
+- Each three-day routing has to be examined according to the following criteria:
+  - It starts and ends in the same city.
+  - Each day, the route should start where the aircraft started the day before.
+  - An overnight stay at the base airport occurs at least once.
+
+Then, an optimization process is now used to select which routes will be implemented while:
+
+- Maximizing the maintenance opportunities.
+- Ensuring that each flight is carried out every day.
+- During the period of three days, each aircraft must have at least one maintenance opportunity.
+
+It turns out that with the current schedule it is needed 1 extra B737-400 aircraft and 3 extra A321 aircrafts considering at least one maintenance opportunity every three days.
+
+The solution for the B737-400 is in the following table:
+
+```{r, echo=FALSE}
+kable(aicraft_routing_table_1, align = "c") %>%
+  kable_styling(full_width = FALSE)
+```
+
+On the other hand, the routings selected for the A321 are:
+
+```{r, echo=FALSE}
+kable(aicraft_routing_table_2, align = "c") %>%
+  kable_styling(full_width = FALSE)
+```
+
+
+
+### Stranded flights
+The need for more aircrafts may be due to some stranded flights. Meaning that as a consequence of schedule, some flights can not be done during the same day and have to be carried out during the next day. Some changes in the schedule can be made manually to reduce the stranded flights.
+
+```{r, echo=FALSE}
+new_schedule <- fread("new_schedule.csv")
+schedule <- fread("schedule.csv")
+
+tbsc1 <- fsetdiff(schedule,new_schedule)
+tbsc1$Fleet <- NULL
+kable(tbsc1, align = "c") %>%
+  kable_styling(full_width = FALSE, position = "center")
+
+tbsc2 <- fsetdiff(new_schedule,schedule)
+tbsc2$Fleet <- NULL
+kable(tbsc2, align = "c") %>%
+  kable_styling(full_width = FALSE,position = "center")
+```
+
+
+
+### Routing for revised schedule
+With the revised schedule it is only needed 1 extra B737-400 aircrafts.
+
+Here are the new routings selected for the B737-400:
+```{r, echo=FALSE}
+kable(aicraft_routing_table_3, align = "c") %>%
+  kable_styling(full_width = FALSE, position = "center")
+```
+
+This table shows the maintenance opportunities during the three-day routings:
+```{r, echo=FALSE}
+kable(aicraft_routing_table_4, align = "c") %>%
+  kable_styling(full_width = FALSE, position = "center")
+```
+
+The solution for A321 is:
+```{r, echo=FALSE}
+kable(aicraft_routing_table_5, align = "c") %>%
+  kable_styling(full_width = FALSE, position = "center")
+```
+
+And, this fleet has 18 maintenance opportunities: 
+```{r, echo=FALSE}
+kable(aicraft_routing_table_6, align = "c") %>%
+  kable_styling(full_width = FALSE, position = "center")
+```
+
+
+<!-- ## Crew scheduling -->
+<!-- ```{r, include=FALSE} -->
+<!-- source("crew_scheduling.R") -->
+<!-- ``` -->
+<!-- Once the aircrafts routings have been selected, a crew has to be assigned to every flight of the airlines. In order to do so, first must be determined every pairing between flight and crew: -->
+
+<!-- - Create all possible one and two.day pairings -->
+<!-- - Exclude all the pairings that do not meet the following: -->
+<!--   - The pairings end up in JFK over the routing cycle -->
+<!--   - For two-day pairings, the first flight of the second day starts at the city where it had ended up the night before. -->
+<!--   - The duty does not exceed eight hours of flight time in any given day. -->
+<!--   - The sit-connection times are between the allowable minimum and maximum times. -->
+
+<!-- After considering the sit-connection times allowable between 20 and 180 minutes for B737-400 and 10 and 185 minutes for A321, the crew pairing solutions are: -->
+
+<!-- ```{r, echo=FALSE} -->
+<!-- source("mp_solver.R") -->
+<!-- source("shorten_aircraft_name.R") -->
+
+<!-- fleet_info[, Fleet_short := shorten_aircraft_name(Fleet), by = Fleet] -->
+
+<!-- ind_r1 <- sol_pairings1[, .(day1, day2, total_flight_time)] -->
+
+<!-- tb1 <- merge(ind_r1,one_day_routes1[,.(ind,`Day 1` = route)],by.x = "day1", by.y = "ind") -->
+<!-- tb1 <- merge(tb1,one_day_routes1[,.(ind,`Day 2` = route)],by.x = "day2", by.y = "ind") -->
+
+<!-- tb1[, Pairing := .I] -->
+<!-- tb1 <- tb1[,.(Pairing, `Day 1`, `Day 2`, total_flight_time)] -->
+<!-- tb1[, total_flight_time := as.integer(total_flight_time/3600)] -->
+<!-- setnames(tb1, "total_flight_time","Flight hours") -->
+
+<!-- cap1 <- paste(fleet_info[1,Fleet_short],"crew pairing solution") -->
+
+<!-- kable(tb1, align = "c", caption = cap1) %>% -->
+<!--   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), -->
+<!--                 full_width = FALSE, -->
+<!--                 position = "center") -->
+
+<!-- ind_r2 <- sol_pairings2[,.(day1, day2, total_flight_time)] -->
+
+<!-- tb2 <- merge(ind_r2,one_day_routes2[,.(ind,`Day 1` = route)],by.x = "day1", by.y = "ind") -->
+<!-- tb2 <- merge(tb2,one_day_routes2[,.(ind,`Day 2` = route)],by.x = "day2", by.y = "ind") -->
+
+<!-- tb2[, Pairing := .I] -->
+<!-- tb2 <- tb2[,.(Pairing, `Day 1`, `Day 2`, total_flight_time)] -->
+<!-- tb2[, total_flight_time := as.integer(total_flight_time/3600)] -->
+<!-- setnames(tb2, "total_flight_time","Flight hours") -->
+
+<!-- cap2 <- paste(fleet_info[2,Fleet_short],"crew pairing solution") -->
+
+<!-- kable(tb2, align = "c", caption = cap2) %>% -->
+<!--   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), -->
+<!--                 full_width = FALSE, -->
+<!--                 position = "center") -->
+<!-- ``` -->
+
+<!-- In order to balance the workload among all rosters, we have considered the mean for all valid rosters. This is 17 hours for B737-400 and 17 hours for A321. -->
+
+<!-- ```{r, include=FALSE} -->
+<!-- routes_comb <- data.table() -->
+<!-- routes_comb$Monday <- as.character(c(1,1,0,0,0,4,4)) -->
+<!-- routes_comb$Tuesday <- as.character(c(2,2,1,1,0,0,0)) -->
+<!-- routes_comb$Wednesday <- as.character(c(0,0,2,2,1,1,0)) -->
+<!-- routes_comb$Thursday <- as.character(c(3,0,0,0,2,2,1)) -->
+<!-- routes_comb$Friday <- as.character(c(4,3,3,0,0,0,2)) -->
+<!-- routes_comb$Saturday <- as.character(c(0,4,4,3,3,0,0)) -->
+<!-- routes_comb$Sunday <- as.character(c(0,0,0,4,4,3,3)) -->
+<!-- routes_comb$ind <- 1:nrow(possible_routes_comb) -->
+
+<!-- sol_5 <- rosters1[ind %in% solution3$vars[value == 1, i1], .(r1,r2,W,flight_time)] -->
+<!-- sol_5 <- merge(sol_5, routes_comb, by.x = "W", by.y = "ind") -->
+<!-- sol_5[, Schedule := .I, by = .I] -->
+
+
+<!-- final1 <- merge(sol_5, sol_pairings1[,.(day1,day2,ind)], by.x = "r1", by.y = "ind") -->
+<!-- final1 <- merge(final1, sol_pairings1[,.(day3 = day1, day4 = day2,ind)], by.x = "r2", by.y = "ind") -->
+
+<!-- final1 <- merge(final1,one_day_routes1[,.(ind, route1 = route)],by.x = "day1", by.y = "ind") -->
+<!-- final1 <- merge(final1,one_day_routes1[,.(ind, route2 = route)],by.x = "day2", by.y = "ind") -->
+<!-- final1 <- merge(final1,one_day_routes1[,.(ind, route3 = route)],by.x = "day3", by.y = "ind") -->
+<!-- final1 <- merge(final1,one_day_routes1[,.(ind, route4 = route)],by.x = "day4", by.y = "ind") -->
+
+<!-- final1[Monday == "1", Monday := route1] -->
+<!-- final1[Monday == "2", Monday := route2] -->
+<!-- final1[Monday == "3", Monday := route3] -->
+<!-- final1[Monday == "4", Monday := route4] -->
+<!-- final1[Monday == "0", Monday := "\u2013"] -->
+
+<!-- final1[Tuesday == "1", Tuesday := route1] -->
+<!-- final1[Tuesday == "2", Tuesday := route2] -->
+<!-- final1[Tuesday == "3", Tuesday := route3] -->
+<!-- final1[Tuesday == "4", Tuesday := route4] -->
+<!-- final1[Tuesday == "0", Tuesday := "\u2013"] -->
+
+<!-- final1[Wednesday == "1", Wednesday := route1] -->
+<!-- final1[Wednesday == "2", Wednesday := route2] -->
+<!-- final1[Wednesday == "3", Wednesday := route3] -->
+<!-- final1[Wednesday == "4", Wednesday := route4] -->
+<!-- final1[Wednesday == "0", Wednesday := "\u2013"] -->
+
+<!-- final1[Thursday == "1", Thursday := route1] -->
+<!-- final1[Thursday == "2", Thursday := route2] -->
+<!-- final1[Thursday == "3", Thursday := route3] -->
+<!-- final1[Thursday == "4", Thursday := route4] -->
+<!-- final1[Thursday == "0", Thursday := "\u2013"] -->
+
+<!-- final1[Friday == "1", Friday := route1] -->
+<!-- final1[Friday == "2", Friday := route2] -->
+<!-- final1[Friday == "3", Friday := route3] -->
+<!-- final1[Friday == "4", Friday := route4] -->
+<!-- final1[Friday == "0", Friday := "\u2013"] -->
+
+<!-- final1[Saturday == "1", Saturday := route1] -->
+<!-- final1[Saturday == "2", Saturday := route2] -->
+<!-- final1[Saturday == "3", Saturday := route3] -->
+<!-- final1[Saturday == "4", Saturday := route4] -->
+<!-- final1[Saturday == "0", Saturday := "\u2013"] -->
+
+<!-- final1[Sunday == "1", Sunday := route1] -->
+<!-- final1[Sunday == "2", Sunday := route2] -->
+<!-- final1[Sunday == "3", Sunday := route3] -->
+<!-- final1[Sunday == "4", Sunday := route4] -->
+<!-- final1[Sunday == "0", Sunday := "\u2013"] -->
+
+<!-- final1 <- final1[, `Flight hours` := round(as.numeric(flight_time))] -->
+
+<!-- final1 <- final1[, .(Schedule, Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday, `Flight hours`)][order(Schedule)] -->
+
+<!-- ``` -->
+
+<!-- ```{r, echo=FALSE} -->
+
+<!-- cap5 <- paste(fleet_info[1,Fleet_short],"crew scheduling solution") -->
+
+<!-- kable(final1, align = "c", caption = cap5) %>% -->
+<!--   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), -->
+<!--                 full_width = FALSE, -->
+<!--                 position = "center") -->
+
+<!-- ``` -->
+
+<!-- <div class = "tocify-extend-page" data-unique = "tocify-extend-page" style = "height: 0;"></div> -->
